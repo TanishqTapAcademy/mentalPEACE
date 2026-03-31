@@ -1,16 +1,17 @@
-# MentailPeace — Implementation Plan (v2.0)
+# MentailPeace — Implementation Plan (v3.0)
 
 **Updated**: 2026-03-31
 **Status**: Planning complete — ready to code
+**Memory System**: Mem0 (replaced Memori)
 
 ---
 
 ## Tech Stack
 - **Backend**: Python (FastAPI)
 - **Frontend**: React (Vite + TypeScript + Tailwind)
-- **Database**: PostgreSQL (Supabase — Memori BYODB + app data)
+- **Database**: PostgreSQL (Supabase + pgvector extension)
 - **AI**: OpenRouter API (multi-LLM access)
-- **Memory**: Memori (SQL-native, auto extract/retrieve, Advanced Augmentation for 8 categories)
+- **Memory**: Mem0 (pip install, 100% local, Apache 2.0, OpenRouter supported)
 - **Streaming**: SSE (Server-Sent Events)
 
 ---
@@ -38,7 +39,7 @@ mentailpeace/
 |   |   |   +-- messages.py           # Message history
 |   |   +-- knowledge/
 |   |   |   +-- index.json            # Topic -> strategy mapping tree
-|   |   |   +-- base_prompt.txt       # Kael persona + response format
+|   |   |   +-- base_prompt.txt       # Kael persona + Rogers tone + response format
 |   |   |   +-- strategies/
 |   |   |       +-- cbt.json          # ~350 tokens each
 |   |   |       +-- dbt.json
@@ -51,12 +52,12 @@ mentailpeace/
 |   |   |       +-- gestalt.json
 |   |   |       +-- positive_psychology.json
 |   |   +-- services/
-|   |       +-- knowledge_router.py   # Crisis check + classify + select strategies
+|   |       +-- knowledge_router.py   # Topic classify + strategy select
 |   |       +-- prompt_builder.py     # Assemble final LLM prompt
 |   |       +-- crisis_detector.py    # Background LLM crisis classification
 |   |       +-- chat_service.py       # Orchestrates full chat flow
 |   |       +-- llm_service.py        # OpenRouter API client + SSE streaming
-|   |       +-- memory_service.py     # Memori wrapper (init, attribution, sessions)
+|   |       +-- memory_service.py     # Mem0 wrapper (init, add, search, per-user)
 |   |       +-- notification_service.py # Background proactive notifications
 |   +-- requirements.txt
 |   +-- .env
@@ -84,62 +85,75 @@ mentailpeace/
 
 ## Implementation Phases
 
-### Phase 1: Foundation + Memori Test
-**Goal**: Database, auth, and verify Memori + OpenRouter works
+### Phase 1: Foundation + Mem0 Test
+**Goal**: Database, auth, and verify Mem0 works with Supabase + OpenRouter
 
-1. PostgreSQL schema via Alembic migrations
+1. Enable pgvector extension in Supabase
+   - `CREATE EXTENSION IF NOT EXISTS vector;`
+2. PostgreSQL schema via Alembic migrations
    - users, profiles, messages, scheduled_notifications tables
-2. Memori integration
-   - Install memori, configure BYODB with Supabase PostgreSQL
-   - Test OpenRouter compatibility (CRITICAL — not officially supported)
-   - Verify auto_ingest + conscious_ingest work
-   - Verify Advanced Augmentation (8 categories)
-   - Fallback plan if OpenRouter doesn't work
-3. Auth endpoints
+3. Mem0 integration
+   - `pip install mem0ai`
+   - Configure pgvector with Supabase credentials
+   - Configure OpenRouter as LLM provider
+   - Test: `m.add()` → `m.search()` → verify it works
+   - Test: deduplication (add conflicting facts, verify UPDATE)
+   - Test: per-user isolation (user_id parameter)
+4. Auth endpoints
    - Email + password signup/login (JWT access + refresh tokens)
    - Guest mode (temp user, merges on signup)
-4. Configurable parameters in .env
+5. Configurable parameters in .env
 
-**Verification**: Send test messages through Memori + OpenRouter, confirm memories extracted and retrieved.
+**Verification**: Add memories for test user, search them back, confirm OpenRouter + pgvector + Mem0 work together.
 
 ### Phase 2: Knowledge System + Chat
 **Goal**: Kael talks with the right therapy approach
 
 1. Knowledge files
    - index.json (topic -> strategy tree with weights)
-   - base_prompt.txt (Kael persona, response format, option rules)
+   - base_prompt.txt (Kael persona + Rogers tone + response format + option rules)
    - 10 strategy JSON files (~350 tokens each)
 2. Knowledge Router
    - Tier 1: keyword matching (free, instant)
    - Tier 2: LLM classification (fallback for unclear topics)
-   - Strategy selector (base + top 2 by weight)
+   - Strategy selector (Rogers base in prompt + top 2 by weight)
 3. Prompt Builder
-   - Assembles: base_prompt + strategies + Memori memories + history + user message
+   - Fetches Mem0 memories via `m.search()`
+   - Assembles: base_prompt + strategies + memories + history + user message
+   - We control exactly what goes into the prompt (not auto-injected)
 4. LLM Service
    - OpenRouter client with SSE streaming
    - StreamingResponse for FastAPI
 5. Chat endpoint
-   - POST /api/chat — full flow: classify -> build prompt -> stream -> save -> Memori extracts
+   - POST /api/chat — full flow:
+     1. Topic classify → select strategies
+     2. Mem0 search → relevant memories
+     3. Build prompt → send to OpenRouter
+     4. Stream response via SSE
+     5. Save messages to DB
+     6. Mem0 add → store new memories (background)
 6. Crisis Detector
    - Background LLM call (cheap model, parallel, non-blocking)
    - Graduated levels: none/low/medium/high/critical
    - Flags stored in DB, affect next Kael response
 
-**Verification**: Chat with Kael, verify topic routing, strategy selection, streaming, memory persistence.
+**Verification**: Chat with Kael, verify topic routing, strategy selection, streaming, Mem0 memory persistence across conversations.
 
 ### Phase 3: Onboarding + Returns
 **Goal**: First-time and returning user experiences
 
 1. 7-step onboarding
    - Steps 1-3: scripted messages (name, age, gender)
-   - Steps 4+: AI-generated with Memori context
+   - Steps 4+: AI-generated with Mem0 context
+   - Each step stored via Mem0 immediately
    - Onboarding exchanges don't count toward limits
 2. Welcome-back flow
    - Detect staleness (>48h since last message)
-   - Memori-powered natural continuation
+   - Mem0 search for recent context
+   - Natural continuation (never say "welcome back")
 3. Notification service
    - Background worker detects inactivity
-   - Memori-powered personal check-ins
+   - Mem0 search for context (commitments, patterns)
    - Spacing: 4-12h -> 24-48h -> 72h+ -> stop
    - Web Push API
 
@@ -183,6 +197,6 @@ mentailpeace/
 | `PRD.md` | Original product requirements |
 | `MVP_PRD.md` | Detailed Kael requirements |
 | `KAEL_REQUIREMENTS_MAPPING.md` | Kael features -> our implementation mapping |
-| `ARCHITECTURE.md` | Full technical architecture (knowledge routing, Memori, features) |
-| `MEMORI_VERIFIED.md` | Verified Memori API reference (what's real vs assumed) |
+| `ARCHITECTURE.md` | Full technical architecture (v3.0 — Mem0 + Knowledge Router) |
+| `MEM0_VERIFIED.md` | Verified Mem0 API reference |
 | `IMPLEMENTATION_PLAN.md` | This file — build phases and file structure |
