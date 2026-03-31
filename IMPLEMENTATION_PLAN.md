@@ -1,164 +1,188 @@
-# MentailPeace — Full-Stack MVP Plan
+# MentailPeace — Implementation Plan (v2.0)
 
-## Context
-Building an AI therapist app from scratch. Empty git repo. The user wants personalized therapy sessions with intelligent memory that persists across sessions. Using **Memori** as the memory layer for its structured categories and token efficiency.
+**Updated**: 2026-03-31
+**Status**: Planning complete — ready to code
+
+---
 
 ## Tech Stack
 - **Backend**: Python (FastAPI)
 - **Frontend**: React (Vite + TypeScript + Tailwind)
-- **Database**: PostgreSQL (Memori BYODB + app data)
+- **Database**: PostgreSQL (Supabase — Memori BYODB + app data)
 - **AI**: OpenRouter API (multi-LLM access)
-- **Memory**: Memori (SQL-native, 8 memory categories, Apache 2.0)
-- **Streaming**: SSE (Server-Sent Events) — simplest streaming, like ChatGPT
+- **Memory**: Memori (SQL-native, auto extract/retrieve, Advanced Augmentation for 8 categories)
+- **Streaming**: SSE (Server-Sent Events)
+
+---
 
 ## Project Structure
+
 ```
 mentailpeace/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI app, CORS, lifespan
-│   │   ├── config.py            # Pydantic settings (.env)
-│   │   ├── database.py          # Async SQLAlchemy engine + session
-│   │   ├── models/              # SQLAlchemy ORM (user, session, message)
-│   │   ├── schemas/             # Pydantic request/response schemas
-│   │   ├── api/                 # FastAPI routers (auth, sessions, chat)
-│   │   ├── services/
-│   │   │   ├── chat_service.py  # Orchestrates chat flow + Memori integration
-│   │   │   ├── llm_service.py   # OpenRouter API client with streaming
-│   │   │   └── memory_service.py# Memori wrapper — therapy-specific memory logic
-│   │   └── prompts/
-│   │       └── therapist.py     # System prompt + memory context formatting
-│   ├── requirements.txt
-│   └── pyproject.toml
-├── frontend/
-│   ├── src/
-│   │   ├── components/chat/     # ChatWindow, MessageBubble, ChatInput
-│   │   ├── components/sessions/ # SessionList, SessionCard
-│   │   ├── components/layout/   # AppLayout, Sidebar, Header
-│   │   ├── components/auth/     # LoginForm, SignupForm
-│   │   ├── hooks/               # useChat (SSE streaming), useSessions, useAuth
-│   │   ├── stores/              # Zustand (auth, chat state)
-│   │   ├── api/                 # API client layer (axios + SSE fetch)
-│   │   └── types/               # TypeScript interfaces
-│   ├── vite.config.ts
-│   └── package.json
-├── docker-compose.yml           # PostgreSQL
-└── .env.example
++-- backend/
+|   +-- app/
+|   |   +-- main.py                    # FastAPI app, CORS, lifespan
+|   |   +-- core/
+|   |   |   +-- config.py             # Pydantic settings (.env)
+|   |   |   +-- database.py           # Async SQLAlchemy engine + session
+|   |   +-- models/
+|   |   |   +-- user.py               # User + Profile ORM
+|   |   |   +-- message.py            # Message ORM
+|   |   |   +-- notification.py       # Scheduled notification ORM
+|   |   +-- schemas/                   # Pydantic request/response schemas
+|   |   +-- routers/
+|   |   |   +-- auth.py               # Signup, login, guest, refresh
+|   |   |   +-- chat.py               # Chat + undo endpoints
+|   |   |   +-- onboarding.py         # 7-step onboarding
+|   |   |   +-- profile.py            # Profile CRUD
+|   |   |   +-- messages.py           # Message history
+|   |   +-- knowledge/
+|   |   |   +-- index.json            # Topic -> strategy mapping tree
+|   |   |   +-- base_prompt.txt       # Kael persona + response format
+|   |   |   +-- strategies/
+|   |   |       +-- cbt.json          # ~350 tokens each
+|   |   |       +-- dbt.json
+|   |   |       +-- act.json
+|   |   |       +-- sfbt.json
+|   |   |       +-- mi.json
+|   |   |       +-- person_centered.json
+|   |   |       +-- narrative.json
+|   |   |       +-- psychodynamic.json
+|   |   |       +-- gestalt.json
+|   |   |       +-- positive_psychology.json
+|   |   +-- services/
+|   |       +-- knowledge_router.py   # Crisis check + classify + select strategies
+|   |       +-- prompt_builder.py     # Assemble final LLM prompt
+|   |       +-- crisis_detector.py    # Background LLM crisis classification
+|   |       +-- chat_service.py       # Orchestrates full chat flow
+|   |       +-- llm_service.py        # OpenRouter API client + SSE streaming
+|   |       +-- memory_service.py     # Memori wrapper (init, attribution, sessions)
+|   |       +-- notification_service.py # Background proactive notifications
+|   +-- requirements.txt
+|   +-- .env
++-- frontend/
+|   +-- src/
+|   |   +-- components/
+|   |   |   +-- chat/                 # ChatWindow, MessageBubble, ChatInput, OptionPills
+|   |   |   +-- layout/              # AppLayout, Header
+|   |   |   +-- auth/                # LoginForm, SignupForm
+|   |   |   +-- onboarding/          # OnboardingStep
+|   |   |   +-- settings/            # ProfileSettings
+|   |   +-- hooks/
+|   |   |   +-- useChat.ts           # SSE streaming + message state
+|   |   |   +-- useAuth.ts           # Auth state + JWT
+|   |   +-- stores/                   # Zustand (auth, chat)
+|   |   +-- api/                      # API client (axios + SSE fetch)
+|   |   +-- types/                    # TypeScript interfaces
+|   +-- vite.config.ts
+|   +-- package.json
++-- docker-compose.yml
++-- .env.example
 ```
 
-## How Memori Fits In
-
-Memori handles memory automatically. We wrap it in a `memory_service.py` for therapy-specific logic.
-
-### Memori's 8 Memory Categories → Therapy Mapping
-| Memori Category | Therapy Usage |
-|---|---|
-| **attributes** | Patient demographics, personality traits |
-| **events** | Session summaries, life events discussed |
-| **facts** | Diagnoses, medications, specific statements |
-| **people** | Family members, friends, coworkers mentioned |
-| **preferences** | Communication style, therapy approach preferences |
-| **relationships** | Dynamics with family, partner, colleagues |
-| **rules** | Boundaries set, therapy goals, commitments |
-| **skills** | Coping strategies learned, techniques practiced |
-
-### Chat Flow with Memori
-```
-1. User sends message
-2. Memori auto-injects relevant memories into the LLM context
-3. LLM generates therapist response (streamed via SSE)
-4. Memori auto-extracts new memories in background (zero latency)
-5. Save message to our messages table for session history
-```
-
-### memory_service.py Responsibilities
-- Initialize Memori with entity_id (user) and process_id (therapist agent)
-- Register the OpenRouter LLM client with Memori
-- Per-session attribution setup
-- Optional: query specific memory categories for session summaries
-
-## Database Schema (Our App Tables — Memori manages its own)
-```sql
--- Users
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    display_name VARCHAR(100),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Therapy sessions
-CREATE TABLE sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(255),
-    mood_start VARCHAR(50),
-    mood_end VARCHAR(50),
-    status VARCHAR(20) DEFAULT 'active',
-    started_at TIMESTAMPTZ DEFAULT NOW(),
-    ended_at TIMESTAMPTZ
-);
-
--- Messages (for session history display)
-CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-## API Endpoints
-```
-POST   /api/auth/signup
-POST   /api/auth/login
-POST   /api/auth/refresh
-
-GET    /api/sessions
-POST   /api/sessions
-GET    /api/sessions/{id}
-PATCH  /api/sessions/{id}          # End session
-
-POST   /api/chat/{session_id}      # SSE streaming response (tokens stream back)
-```
+---
 
 ## Implementation Phases
 
-### Phase 1: Foundation
-- Project structure, .gitignore, .env.example
-- docker-compose.yml (PostgreSQL)
-- FastAPI skeleton: config, database, models, migrations
-- Auth endpoints (signup, login, JWT)
-- Session CRUD
+### Phase 1: Foundation + Memori Test
+**Goal**: Database, auth, and verify Memori + OpenRouter works
 
-### Phase 2: Chat + Memori Integration
-- Install Memori: `pip install memori`
-- `llm_service.py` — OpenRouter client with streaming
-- `memory_service.py` — Memori setup, entity/process attribution
-- `chat_service.py` — register LLM with Memori, handle chat flow
-- SSE streaming endpoint (FastAPI StreamingResponse)
-- Therapist system prompt
-- Test: send messages, verify Memori remembers across sessions
+1. PostgreSQL schema via Alembic migrations
+   - users, profiles, messages, scheduled_notifications tables
+2. Memori integration
+   - Install memori, configure BYODB with Supabase PostgreSQL
+   - Test OpenRouter compatibility (CRITICAL — not officially supported)
+   - Verify auto_ingest + conscious_ingest work
+   - Verify Advanced Augmentation (8 categories)
+   - Fallback plan if OpenRouter doesn't work
+3. Auth endpoints
+   - Email + password signup/login (JWT access + refresh tokens)
+   - Guest mode (temp user, merges on signup)
+4. Configurable parameters in .env
 
-### Phase 3: React Frontend
-- Vite + React + TypeScript + Tailwind
-- Auth pages (login/signup)
-- AppLayout with sidebar
-- ChatWindow, MessageBubble, ChatInput
-- useChat hook with SSE streaming (fetch + ReadableStream)
-- SessionList sidebar
+**Verification**: Send test messages through Memori + OpenRouter, confirm memories extracted and retrieved.
 
-### Phase 4: Polish
-- Mood tracking (start/end of session)
-- Session titles (auto-generated)
-- Error handling, loading states
-- Responsive design
-- Rate limiting
+### Phase 2: Knowledge System + Chat
+**Goal**: Kael talks with the right therapy approach
 
-## Verification
-- Start PostgreSQL via docker-compose
-- Start backend: `uvicorn app.main:app --reload`
-- Start frontend: `npm run dev`
-- Test flow: sign up → start session → chat → end session → start new session → verify AI recalls info from previous session
+1. Knowledge files
+   - index.json (topic -> strategy tree with weights)
+   - base_prompt.txt (Kael persona, response format, option rules)
+   - 10 strategy JSON files (~350 tokens each)
+2. Knowledge Router
+   - Tier 1: keyword matching (free, instant)
+   - Tier 2: LLM classification (fallback for unclear topics)
+   - Strategy selector (base + top 2 by weight)
+3. Prompt Builder
+   - Assembles: base_prompt + strategies + Memori memories + history + user message
+4. LLM Service
+   - OpenRouter client with SSE streaming
+   - StreamingResponse for FastAPI
+5. Chat endpoint
+   - POST /api/chat — full flow: classify -> build prompt -> stream -> save -> Memori extracts
+6. Crisis Detector
+   - Background LLM call (cheap model, parallel, non-blocking)
+   - Graduated levels: none/low/medium/high/critical
+   - Flags stored in DB, affect next Kael response
+
+**Verification**: Chat with Kael, verify topic routing, strategy selection, streaming, memory persistence.
+
+### Phase 3: Onboarding + Returns
+**Goal**: First-time and returning user experiences
+
+1. 7-step onboarding
+   - Steps 1-3: scripted messages (name, age, gender)
+   - Steps 4+: AI-generated with Memori context
+   - Onboarding exchanges don't count toward limits
+2. Welcome-back flow
+   - Detect staleness (>48h since last message)
+   - Memori-powered natural continuation
+3. Notification service
+   - Background worker detects inactivity
+   - Memori-powered personal check-ins
+   - Spacing: 4-12h -> 24-48h -> 72h+ -> stop
+   - Web Push API
+
+**Verification**: Complete onboarding, leave for 48h+, verify welcome-back. Test notifications.
+
+### Phase 4: Frontend
+**Goal**: Full React UI
+
+1. Chat UI
+   - MessageBubble (user right, Kael left, markdown rendering)
+   - OptionPills (tappable, only on latest AI message)
+   - ChatInput (always visible, send button)
+   - Streaming text display (SSE hook)
+   - Thinking indicator ("Kael is thinking...")
+2. Auth pages (login, signup)
+3. Onboarding (in-chat, not separate screens)
+4. Message undo (DELETE last exchange, restore previous options)
+5. Profile/Settings screen
+6. Responsive mobile layout
+
+**Verification**: Full E2E flow in browser.
+
+### Phase 5: Polish
+**Goal**: Production-ready
+
+1. Guest wall (after GUEST_EXCHANGE_LIMIT exchanges)
+2. Paywall (after PAYWALL_EXCHANGE_LIMIT, Stripe)
+3. Exchange counting
+4. Error handling (network drops, LLM failures, retries)
+5. Loading states, empty states
+6. Rate limiting
+7. Date separators in chat
+8. Dark/light mode
+
+---
+
+## Key Documents
+
+| Document | Purpose |
+|----------|---------|
+| `PRD.md` | Original product requirements |
+| `MVP_PRD.md` | Detailed Kael requirements |
+| `KAEL_REQUIREMENTS_MAPPING.md` | Kael features -> our implementation mapping |
+| `ARCHITECTURE.md` | Full technical architecture (knowledge routing, Memori, features) |
+| `MEMORI_VERIFIED.md` | Verified Memori API reference (what's real vs assumed) |
+| `IMPLEMENTATION_PLAN.md` | This file — build phases and file structure |
