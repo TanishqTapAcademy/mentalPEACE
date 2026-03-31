@@ -21,15 +21,6 @@ export default function SignupPage() {
     }
   }, [user, isLoading, navigate]);
 
-  // Don't flash the signup page while checking auth
-  if (isLoading) {
-    return (
-      <div className="bg-[#09090b] min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-teal-500/30 border-t-teal-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
     setError('');
     setLoading(true);
@@ -72,6 +63,7 @@ export default function SignupPage() {
       return () => clearInterval(interval);
     }
   }, [handleGoogleResponse]);
+
 
   const passwordChecks = {
     length: password.length >= 8,

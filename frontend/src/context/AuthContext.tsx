@@ -1,6 +1,17 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useLottie } from 'lottie-react';
+import loaderAnimation from '../assets/lootie/loader/Run cycle recreated in Lottie Creator.json';
 import { authApi, type User } from '../api/auth';
 import { AxiosError } from 'axios';
+
+function FullScreenLoader() {
+  const { View } = useLottie({ animationData: loaderAnimation, loop: true });
+  return (
+    <div className="bg-[#09090b] min-h-screen flex items-center justify-center">
+      <div className="w-32 h-32">{View}</div>
+    </div>
+  );
+}
 
 interface AuthContextType {
   user: User | null;
@@ -45,6 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.logout();
     setUser(null);
   };
+
+  if (isLoading) {
+    return <FullScreenLoader />;
+  }
 
   return (
     <AuthContext.Provider value={{ user, isLoading, login, signup, googleLogin, logout }}>
