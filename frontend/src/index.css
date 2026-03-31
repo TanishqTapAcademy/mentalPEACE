@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
 body {
@@ -8,4 +9,20 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+@keyframes slideFadeIn {
+  0% { opacity: 0; transform: translateY(1.5rem) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+  33% { transform: translate(4vw, -6vh) rotate(5deg) scale(1.05); }
+  66% { transform: translate(-3vw, 4vh) rotate(-5deg) scale(0.95); }
+}
+
+@keyframes shine {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  20%, 100% { transform: translateX(200%) skewX(-20deg); }
 }
