@@ -59,5 +59,9 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
+
 class MessageResponse(BaseModel):
     message: str

@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.auth import (
+    GoogleAuthRequest,
     LoginRequest,
     MessageResponse,
     SignupRequest,
@@ -20,8 +21,10 @@ from app.services.auth_service import (
     create_refresh_token,
     create_user,
     decode_token,
+    get_or_create_google_user,
     get_user_by_email,
     get_user_by_id,
+    verify_google_token,
     verify_password,
 )
 
@@ -91,6 +94,28 @@ async def login(
     user = await get_user_by_email(db, data.email)
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
+
+    _set_auth_cookies(response, str(user.id))
+    return user
+
+
+@router.post("/google", response_model=UserResponse)
+@limiter.limit("10/minute")
+async def google_auth(
+    request: Request,
+    data: GoogleAuthRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        google_info = verify_google_token(data.credential)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    user = await get_or_create_google_user(db, google_info)
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is disabled")

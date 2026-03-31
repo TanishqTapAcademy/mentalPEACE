@@ -1,6 +1,19 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, getErrorMessage } from '../context/AuthContext';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (element: HTMLElement, config: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -8,8 +21,69 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { user, isLoading, login, googleLogin } = useAuth();
   const navigate = useNavigate();
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, isLoading, navigate]);
+
+  // Don't flash the login page while checking auth
+  if (isLoading) {
+    return (
+      <div className="bg-[#09090b] min-h-screen flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-teal-500/30 border-t-teal-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const handleGoogleResponse = useCallback(async (response: { credential: string }) => {
+    setError('');
+    setLoading(true);
+    try {
+      await googleLogin(response.credential);
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [googleLogin, navigate]);
+
+  useEffect(() => {
+    const initGoogle = () => {
+      if (window.google && googleButtonRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          callback: handleGoogleResponse,
+        });
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          theme: 'filled_black',
+          size: 'large',
+          width: '100%',
+          shape: 'pill',
+          text: 'signin_with',
+        });
+      }
+    };
+
+    // GSI script may already be loaded or still loading
+    if (window.google) {
+      initGoogle();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google) {
+          clearInterval(interval);
+          initGoogle();
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+  }, [handleGoogleResponse]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -141,6 +215,18 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="relative z-20 flex items-center gap-3">
+            <div className="flex-1 h-px bg-zinc-700/50" />
+            <span className="text-xs text-zinc-500 uppercase tracking-widest">or</span>
+            <div className="flex-1 h-px bg-zinc-700/50" />
+          </div>
+
+          {/* Google Sign-In */}
+          <div className="relative z-20 flex justify-center">
+            <div ref={googleButtonRef} />
+          </div>
 
           {/* Bottom Link */}
           <div className="text-center flex flex-col sm:inline-block text-xs sm:text-sm font-normal text-zinc-400 mt-1 sm:mt-2 relative z-20">

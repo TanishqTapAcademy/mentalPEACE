@@ -14,3 +14,5 @@ sse-starlette
 alembic
 slowapi
 email-validator
+google-auth
+requests
